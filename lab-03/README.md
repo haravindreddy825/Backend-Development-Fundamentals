@@ -11,19 +11,20 @@
 # Lab 3: REST API, query parameters, validation, debugging
 
 ## Objective
-The objective of this lab is to develop a production-ready RESTful API for book management using Node.js, Express, and SQLite. The lab demonstrates:
-- Designing clean RESTful routes utilizing standard HTTP verbs (`GET`, `POST`, `PUT`, `DELETE`).
-- Handling flexible query parameters on collection endpoints for search (`search_q` with SQL `LIKE`), column sorting (`order_by`), sort direction (`order`), pagination (`limit`, `offset`), and range filtering (`min_price`, `max_price` with `BETWEEN`).
-- Implementing strict request payload validation with standardized JSON error responses and appropriate HTTP status codes (`200 OK`, `201 Created`, `400 Bad Request`, `404 Not Found`, `500 Internal Server Error`).
-- Using parameterized SQL queries (`?` placeholders) across all user inputs to prevent SQL Injection vulnerabilities.
-- Debugging common backend runtime errors including port collision (`EADDRINUSE`), broken module import paths, database table typos, and unawaited asynchronous operations.
+The objective of this lab is to build a robust RESTful API using Express.js and SQLite to perform complete CRUD operations on books data. The implementation features:
+- Standard RESTful endpoint design using appropriate HTTP verbs (`GET`, `POST`, `PUT`, `DELETE`).
+- Handling query parameters on collection endpoints with default values: `search_q` (partial title matching via SQL `LIKE`), `order_by` (default `id`), `order` (`ASC` or `DESC`, default `ASC`), `limit` (default `10`), `offset` (default `0`), and price range filtering via `min_price` and `max_price` using `BETWEEN ? AND ?`.
+- Strict request payload validation rejecting missing required fields (`title`, `author`) or non-numeric/negative `price` with `400 Bad Request`.
+- Safe SQL execution using parameterized queries (`?` placeholders) on all user input to prevent SQL injection vulnerabilities.
+- Consistent JSON responses with appropriate HTTP status codes (`200 OK`, `201 Created`, `400 Bad Request`, `404 Not Found`, `500 Internal Server Error`).
+- Systematic identification and resolution of common backend bugs (`EADDRINUSE`, wrong import path, table-name typo, missing `await`).
 
 ---
 
 ## How to Run
 
 ### 1. Prerequisites
-- Node.js (version 18 or higher)
+- Node.js (v18 or higher)
 - npm (Node Package Manager)
 
 ### 2. Navigate to Project Directory
@@ -36,17 +37,17 @@ cd lab-03
 npm install
 ```
 
-### 4. Initialize and Seed SQLite Database
+### 4. Initialize Database
 ```bash
 node setupDb.js
 ```
-This creates `books.db` with the `book` table and seeds 10 sample book records.
+This creates `books.db` and populates the `book` table with 10 sample records.
 
-### 5. Start the Express Server
+### 5. Start the Application Server
 ```bash
 npm start
 ```
-The application server starts and listens on `http://localhost:3000/`.
+The server will run on `http://localhost:3000/`.
 
 ---
 
@@ -54,11 +55,11 @@ The application server starts and listens on `http://localhost:3000/`.
 
 | Method | Endpoint | Query / Body Parameters | Success Status | Error Status | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **GET** | `/books/` | `search_q`, `order_by`, `order`, `limit`, `offset`, `min_price`, `max_price` | `200 OK` | `500 Internal Server Error` | Retrieve books with optional search, sorting, price range filtering, and pagination. |
-| **GET** | `/books/:bookId/` | Path Parameter: `bookId` | `200 OK` | `404 Not Found`, `500` | Fetch details of a single book by primary key ID. |
-| **POST** | `/books/` | Body: `{ title, author, price, pages }` | `201 Created` | `400 Bad Request`, `500` | Add a new book with required field and numeric validation. |
-| **PUT** | `/books/:bookId/` | Path: `bookId`<br>Body: `{ title, author, price, pages }` | `200 OK` | `400 Bad Request`, `404 Not Found`, `500` | Update an existing book's details after verifying its existence. |
-| **DELETE** | `/books/:bookId/` | Path Parameter: `bookId` | `200 OK` | `404 Not Found`, `500` | Delete a book record by ID after verifying existence. |
+| **GET** | `/books/` | `search_q`, `order_by`, `order`, `limit`, `offset`, `min_price`, `max_price` | `200 OK` | `500` | Fetch books with optional title search, column sorting, pagination, and price range filters. |
+| **GET** | `/books/:bookId/` | Path: `bookId` | `200 OK` | `404 Not Found`, `500` | Retrieve single book details by ID. |
+| **POST** | `/books/` | Body: `{ title, author, price, pages }` | `201 Created` | `400 Bad Request`, `500` | Add new book with mandatory field and numeric validation. |
+| **PUT** | `/books/:bookId/` | Path: `bookId`<br>Body: `{ title, author, price, pages }` | `200 OK` | `400 Bad Request`, `404 Not Found`, `500` | Update existing book after verifying existence. |
+| **DELETE** | `/books/:bookId/` | Path: `bookId` | `200 OK` | `404 Not Found`, `500` | Delete book record after verifying existence. |
 
 ---
 
@@ -181,54 +182,57 @@ app.get("/books/", async (request, response) => {
     max_price
   } = request.query;
 
-  const validColumns = ["id", "title", "author", "price", "pages"];
-  const sortColumn = validColumns.includes(order_by) ? order_by : "id";
-  const sortOrder = order && order.toUpperCase() === "DESC" ? "DESC" : "ASC";
+  let getBooksQuery = "";
+  let queryParams = [];
 
-  const conditions = ["title LIKE ?"];
-  const queryParams = [`%${search_q}%`];
-
-  if (min_price !== undefined && max_price !== undefined && min_price !== "" && max_price !== "") {
-    conditions.push("price BETWEEN ? AND ?");
-    queryParams.push(Number(min_price), Number(max_price));
-  } else if (min_price !== undefined && min_price !== "") {
-    conditions.push("price >= ?");
-    queryParams.push(Number(min_price));
-  } else if (max_price !== undefined && max_price !== "") {
-    conditions.push("price <= ?");
-    queryParams.push(Number(max_price));
+  if (min_price !== undefined && max_price !== undefined) {
+    getBooksQuery = `
+      SELECT
+        *
+      FROM
+        book
+      WHERE
+        title LIKE ?
+        AND price BETWEEN ? AND ?
+      ORDER BY
+        ${order_by} ${order}
+      LIMIT ? OFFSET ?;
+    `;
+    queryParams = [`%${search_q}%`, Number(min_price), Number(max_price), Number(limit), Number(offset)];
+  } else {
+    getBooksQuery = `
+      SELECT
+        *
+      FROM
+        book
+      WHERE
+        title LIKE ?
+      ORDER BY
+        ${order_by} ${order}
+      LIMIT ? OFFSET ?;
+    `;
+    queryParams = [`%${search_q}%`, Number(limit), Number(offset)];
   }
 
-  const whereClause = conditions.join(" AND ");
-  const getBooksQuery = `
-    SELECT * FROM book
-    WHERE ${whereClause}
-    ORDER BY ${sortColumn} ${sortOrder}
-    LIMIT ? OFFSET ?
-  `;
-
-  queryParams.push(Number(limit), Number(offset));
-
-  try {
-    const books = await db.all(getBooksQuery, queryParams);
-    response.status(200).json(books);
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
+  const books = await db.all(getBooksQuery, queryParams);
+  response.status(200).json(books);
 });
 
 app.get("/books/:bookId/", async (request, response) => {
   const { bookId } = request.params;
-  try {
-    const getBookQuery = `SELECT * FROM book WHERE id = ?`;
-    const book = await db.get(getBookQuery, [bookId]);
-    if (!book) {
-      return response.status(404).json({ message: "Book Not Found" });
-    }
-    response.status(200).json(book);
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
+  const getBookQuery = `
+    SELECT
+      *
+    FROM
+      book
+    WHERE
+      id = ?;
+  `;
+  const book = await db.get(getBookQuery, [bookId]);
+  if (!book) {
+    return response.status(404).json({ message: "Book Not Found" });
   }
+  response.status(200).json(book);
 });
 
 app.post("/books/", async (request, response) => {
@@ -242,66 +246,86 @@ app.post("/books/", async (request, response) => {
   if (price === undefined || typeof price !== "number" || isNaN(price) || price < 0) {
     return response.status(400).json({ message: "Price must be a non-negative number" });
   }
-  if (pages !== undefined && (typeof pages !== "number" || isNaN(pages) || pages < 0)) {
-    return response.status(400).json({ message: "Pages must be a non-negative number" });
-  }
-  const pagesCount = pages !== undefined ? pages : 0;
-  try {
-    const addBookQuery = `INSERT INTO book (title, author, price, pages) VALUES (?, ?, ?, ?)`;
-    const result = await db.run(addBookQuery, [title.trim(), author.trim(), price, pagesCount]);
-    response.status(201).json({
-      bookId: result.lastID,
-      message: "Book Added Successfully"
-    });
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
+  const pagesCount = pages !== undefined && typeof pages === "number" && pages >= 0 ? pages : 0;
+
+  const addBookQuery = `
+    INSERT INTO
+      book (title, author, price, pages)
+    VALUES
+      (?, ?, ?, ?);
+  `;
+  const result = await db.run(addBookQuery, [title.trim(), author.trim(), price, pagesCount]);
+  response.status(201).json({
+    bookId: result.lastID,
+    message: "Book Added Successfully"
+  });
 });
 
 app.put("/books/:bookId/", async (request, response) => {
   const { bookId } = request.params;
-  try {
-    const checkQuery = `SELECT * FROM book WHERE id = ?`;
-    const existingBook = await db.get(checkQuery, [bookId]);
-    if (!existingBook) {
-      return response.status(404).json({ message: "Book Not Found" });
-    }
-    const { title, author, price, pages } = request.body;
-    if (!title || typeof title !== "string" || title.trim() === "") {
-      return response.status(400).json({ message: "Invalid or missing title" });
-    }
-    if (!author || typeof author !== "string" || author.trim() === "") {
-      return response.status(400).json({ message: "Invalid or missing author" });
-    }
-    if (price === undefined || typeof price !== "number" || isNaN(price) || price < 0) {
-      return response.status(400).json({ message: "Price must be a non-negative number" });
-    }
-    if (pages !== undefined && (typeof pages !== "number" || isNaN(pages) || pages < 0)) {
-      return response.status(400).json({ message: "Pages must be a non-negative number" });
-    }
-    const pagesCount = pages !== undefined ? pages : existingBook.pages;
-    const updateQuery = `UPDATE book SET title = ?, author = ?, price = ?, pages = ? WHERE id = ?`;
-    await db.run(updateQuery, [title.trim(), author.trim(), price, pagesCount, bookId]);
-    response.status(200).json({ message: "Book Updated Successfully" });
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
+  const checkBookQuery = `
+    SELECT
+      *
+    FROM
+      book
+    WHERE
+      id = ?;
+  `;
+  const existingBook = await db.get(checkBookQuery, [bookId]);
+  if (!existingBook) {
+    return response.status(404).json({ message: "Book Not Found" });
   }
+
+  const { title, author, price, pages } = request.body;
+  if (!title || typeof title !== "string" || title.trim() === "") {
+    return response.status(400).json({ message: "Invalid or missing title" });
+  }
+  if (!author || typeof author !== "string" || author.trim() === "") {
+    return response.status(400).json({ message: "Invalid or missing author" });
+  }
+  if (price === undefined || typeof price !== "number" || isNaN(price) || price < 0) {
+    return response.status(400).json({ message: "Price must be a non-negative number" });
+  }
+  const pagesCount = pages !== undefined && typeof pages === "number" && pages >= 0 ? pages : existingBook.pages;
+
+  const updateBookQuery = `
+    UPDATE
+      book
+    SET
+      title = ?,
+      author = ?,
+      price = ?,
+      pages = ?
+    WHERE
+      id = ?;
+  `;
+  await db.run(updateBookQuery, [title.trim(), author.trim(), price, pagesCount, bookId]);
+  response.status(200).json({ message: "Book Updated Successfully" });
 });
 
 app.delete("/books/:bookId/", async (request, response) => {
   const { bookId } = request.params;
-  try {
-    const checkQuery = `SELECT * FROM book WHERE id = ?`;
-    const existingBook = await db.get(checkQuery, [bookId]);
-    if (!existingBook) {
-      return response.status(404).json({ message: "Book Not Found" });
-    }
-    const deleteQuery = `DELETE FROM book WHERE id = ?`;
-    await db.run(deleteQuery, [bookId]);
-    response.status(200).json({ message: "Book Deleted Successfully" });
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
+  const checkBookQuery = `
+    SELECT
+      *
+    FROM
+      book
+    WHERE
+      id = ?;
+  `;
+  const existingBook = await db.get(checkBookQuery, [bookId]);
+  if (!existingBook) {
+    return response.status(404).json({ message: "Book Not Found" });
   }
+
+  const deleteBookQuery = `
+    DELETE FROM
+      book
+    WHERE
+      id = ?;
+  `;
+  await db.run(deleteBookQuery, [bookId]);
+  response.status(200).json({ message: "Book Deleted Successfully" });
 });
 
 app.use((request, response) => {
@@ -316,55 +340,55 @@ module.exports = app;
 ## Working Output & Screenshots
 
 ### 1. Default GET Books (`/books/`)
-Retrieves the default list of books with limit 10 and ordered by id ascending (`200 OK`).
+Retrieves default list of books with default limit 10 ordered by id (`200 OK`).
 ![Default GET books](screenshots/01_get_books_default.png)
 
 ### 2. Search Query Parameter (`/books/?search_q=the`)
-Performs partial title matching using SQL `LIKE %the%` returning matching records (`200 OK`).
+Performs partial title search with SQL `LIKE ?` returning matched records (`200 OK`).
 ![Search query](screenshots/02_get_books_search.png)
 
 ### 3. Price Range Filter (`/books/?min_price=300&max_price=600`)
-Filters books whose price falls between 300 and 600 using `BETWEEN ? AND ?` (`200 OK`).
+Filters books with price between 300 and 600 using `BETWEEN ? AND ?` (`200 OK`).
 ![Price range filter](screenshots/03_get_books_price_filter.png)
 
 ### 4. Sorting & Pagination (`/books/?order_by=price&order=DESC&limit=4`)
-Sorts books by price descending with pagination limit of 4 items (`200 OK`).
+Sorts books by price descending with limit 4 (`200 OK`).
 ![Sorting and pagination](screenshots/04_get_books_sort_pagination.png)
 
 ### 5. GET Single Book (`/books/3/`)
-Retrieves single book by ID with full details (`200 OK`).
+Retrieves a specific book by ID (`200 OK`).
 ![GET single book success](screenshots/05_get_single_book_success.png)
 
 ### 6. GET Single Book - Not Found (`/books/999/`)
-Handles non-existent ID gracefully returning 404 status (`404 Not Found`).
+Handles non-existent ID gracefully returning 404 (`404 Not Found`).
 ![GET single book not found](screenshots/06_get_single_book_not_found.png)
 
 ### 7. POST Add Book Success (`/books/`)
-Successfully creates a new book record and returns generated `bookId` (`201 Created`).
+Creates a new book record and returns generated `bookId` (`201 Created`).
 ![POST add book success](screenshots/07_post_book_success.png)
 
 ### 8. POST Missing Title Error (`/books/`)
-Rejects payload missing the required `title` field (`400 Bad Request`).
+Rejects request body missing required `title` field (`400 Bad Request`).
 ![POST missing title error](screenshots/08_post_book_missing_title.png)
 
 ### 9. POST Invalid Non-Numeric Price Error (`/books/`)
-Rejects payload with invalid price format (`400 Bad Request`).
+Rejects request body with non-numeric price (`400 Bad Request`).
 ![POST invalid price error](screenshots/09_post_book_invalid_price.png)
 
 ### 10. PUT Update Book Success (`/books/3/`)
-Updates existing book details after checking record presence (`200 OK`).
+Updates existing book details after existence check (`200 OK`).
 ![PUT update book success](screenshots/10_put_book_success.png)
 
 ### 11. PUT Book Not Found (`/books/999/`)
-Returns 404 status when attempting to update a non-existent book ID (`404 Not Found`).
+Returns 404 when attempting to update a non-existent book ID (`404 Not Found`).
 ![PUT book not found](screenshots/11_put_book_not_found.png)
 
 ### 12. DELETE Book Success (`/books/5/`)
-Deletes book record by ID from database (`200 OK`).
+Deletes book record by ID after verifying existence (`200 OK`).
 ![DELETE book success](screenshots/12_delete_book_success.png)
 
 ### 13. DELETE Book Not Found (`/books/999/`)
-Returns 404 status when attempting to delete a non-existent book ID (`404 Not Found`).
+Returns 404 when attempting to delete a non-existent book ID (`404 Not Found`).
 ![DELETE book not found](screenshots/13_delete_book_not_found.png)
 
 ### 14. SQLite CLI Table Verification
@@ -376,49 +400,48 @@ Direct SQLite CLI verification showing table state changes before and after API 
 ## Viva Questions & Answers
 
 ### Q1: What is the difference between a Query Parameter and a Path Parameter?
-- **Path Parameters (`req.params`):** Part of the URL path itself (e.g., `/books/:bookId/`). They are used to identify a specific resource or entity hierarchy. They are mandatory for identifying a unique resource.
-- **Query Parameters (`req.query`):** Appended to the URL after a question mark `?` as key-value pairs separated by `&` (e.g., `/books?search_q=the&order_by=price`). They are optional and used to sort, filter, paginate, or modify the representation of the collection without changing the resource identifier.
+- **Path Parameters (`req.params`):** Part of the URL endpoint path itself (e.g., `/books/:bookId/`). They are essential for identifying a specific individual resource in the hierarchy.
+- **Query Parameters (`req.query`):** Appended to the URL after a question mark `?` as key-value pairs (e.g., `/books?search_q=the&order_by=price`). They are optional and used to sort, filter, paginate, or modify representation without altering the resource endpoint identity.
 
-### Q2: What does "stateless" mean in the context of RESTful architecture?
-- In REST architecture, **statelessness** means that every HTTP request from the client to the server must contain all the information necessary for the server to understand and process the request.
-- The server does not store any client session context between requests.
-- Each request is completely independent. This significantly improves scalability, cacheability, and server fault tolerance.
+### Q2: What does "stateless" mean in RESTful architecture?
+- In REST architecture, **statelessness** means every HTTP request from client to server must contain all information required to understand and process the request.
+- The server does not store client session context between requests. Each request is isolated and independent, enabling high scalability, caching, and reliability.
 
 ### Q3: When should you return HTTP status code 400 Bad Request vs 404 Not Found?
-- **400 Bad Request:** Returned when the client sends an invalid, malformed, or incomplete request (e.g., missing required fields like `title` or `author`, invalid data types such as a string for a numeric `price`, or malformed JSON payload). The problem lies with the request syntax or semantic payload.
-- **404 Not Found:** Returned when the client makes a valid request to a URI or resource that does not exist on the server (e.g., requesting `/books/999/` when book ID 999 is not present in the database, or requesting an undefined endpoint path).
+- **400 Bad Request:** Returned when the client sends invalid, malformed, or incomplete request data (e.g., missing required `title`, negative price, non-numeric price). The issue is client payload syntax or semantic validation.
+- **404 Not Found:** Returned when the request is syntactically valid, but the target resource or route does not exist on the server (e.g., `/books/999/` where ID 999 does not exist, or an undefined endpoint URL).
 
 ---
 
 ## Debugging Notes
 
-During development and testing of this lab, four standard backend errors were systematically identified, analyzed, and resolved:
+During development and testing of this lab, four common backend issues were diagnosed and resolved:
 
 ### 1. Port Conflict (`EADDRINUSE`)
-- **Symptom:** Error message `Error: listen EADDRINUSE: address already in use :::3000`.
-- **Cause:** Another instance of Node.js or a different background process was already bound to port 3000.
+- **Symptom:** `Error: listen EADDRINUSE: address already in use :::3000`.
+- **Cause:** Another node process or terminal was actively listening on port 3000.
 - **Resolution:**
-  - Located the process PID using Windows PowerShell:
+  - Located owning process PID using PowerShell:
     ```powershell
     Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
     ```
-  - Terminated the lingering process:
+  - Terminated process:
     ```powershell
     Stop-Process -Id <PID> -Force
     ```
-  - Relaunched the server cleanly.
+  - Restarted the server cleanly.
 
 ### 2. Broken Import Path
-- **Symptom:** `Error: Cannot find module './books.db'` or incorrect path resolution for SQLite database.
-- **Cause:** Using relative string paths directly like `open({ filename: "books.db" })`, which resolves relative to the current working directory of the shell rather than the directory of `app.js`.
-- **Resolution:** Utilized Node.js `path.join(__dirname, "books.db")` to guarantee absolute path resolution independent of where the node command was executed.
+- **Symptom:** `Error: Cannot find module 'books.db'` or database created in wrong directory.
+- **Cause:** Using relative string path `"books.db"`, which resolves against current shell working directory instead of the application directory.
+- **Resolution:** Used `path.join(__dirname, "books.db")` to guarantee absolute path resolution relative to `app.js`.
 
 ### 3. Table-Name Typo (`no such table`)
 - **Symptom:** `DB Error: SQLITE_ERROR: no such table: books`.
-- **Cause:** Discrepancy between table creation schema naming (`book` singular) and SQL queries written as `SELECT * FROM books` (plural).
-- **Resolution:** Standardized database table definition to `book` across both `setupDb.js` and all SQL query strings in `app.js`.
+- **Cause:** Schema was created as `book` (singular) while queries referenced `books` (plural).
+- **Resolution:** Standardized table name to `book` in both `setupDb.js` and all queries in `app.js`.
 
 ### 4. Missing `await` in Database Operations
-- **Symptom:** Endpoint returning empty objects, unhandled promise rejections, or asynchronous queries completing after the HTTP response was already sent.
-- **Cause:** Calling asynchronous SQLite driver methods (such as `db.get()`, `db.all()`, or `db.run()`) without the `await` keyword.
-- **Resolution:** Ensured every database call inside route handlers is properly prefixed with `await` within `async (request, response)` functions, wrapped in robust `try...catch` blocks.
+- **Symptom:** Routes returned empty responses or unhandled promise warnings.
+- **Cause:** Omitting `await` before asynchronous SQLite methods like `db.all()`, `db.get()`, or `db.run()`.
+- **Resolution:** Ensured all database driver calls are properly awaited within `async` route handlers.
