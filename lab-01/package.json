@@ -1,0 +1,13 @@
+{
+  "name": "lab-01",
+  "version": "1.0.0",
+  "description": "Lab 1: Node.js and Express server",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "http-server": "node http_server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.3"
+  }
+}
