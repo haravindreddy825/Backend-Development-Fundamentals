@@ -5,11 +5,15 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "setup-db": "node setupDb.js"
+    "dev": "nodemon app.js",
+    "init-db": "node setupDb.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
+    "express": "^4.19.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }

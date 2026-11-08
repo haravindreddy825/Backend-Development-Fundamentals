@@ -1,309 +1,147 @@
-| Information | Details | Additional Information |
-| --- | --- | --- |
-| Student Name | PALLE HARAVIND REDDY | |
-| Student Registration Number | 252U1R5119 | Class & Section: 313 AI DE 2B |
-| Study Level : UG/PG/Doctorate | UG | Year & Term: 2 & 2 |
-| Subject Name | Backend Development Fundamentals | |
-| Teacher / Faculty Name | Mr Yugandhar Gurjalwar | |
-| Name of the Assessment | LAB REPORT - 2 | |
-| Date of Submission | 6/11/2026 | |
-
 # Lab 2: SQLite database and CRUD routes
 
+| Field | Details |
+| :--- | :--- |
+| **Student Name** | PALLE HARAVIND REDDY |
+| **Student Registration Number** | 252U1R5119 |
+| **Class & Section** | 313 AI DE 2B |
+| **Study Level** | UG |
+| **Year & Term** | 2 & 2 |
+| **Subject Name** | Backend Development Fundamentals |
+| **Teacher / Faculty Name** | Mr Yugandhar Gurjalwar |
+| **Name of the Assessment** | LAB REPORT - 2 |
+| **Date of Submission** | 6/11/2026 |
+
+---
+
 ## Objective
-Connect an Express.js server to an embedded SQLite database using asynchronous drivers (`sqlite` and `sqlite3`), design and seed a relational table (`book`), and implement complete CRUD (Create, Read, Update, Delete) HTTP routes using parameterized queries (`?` placeholders) to prevent SQL injection.
+Connect an Express server to a SQLite database (`books.db`) using the `sqlite` and `sqlite3` driver packages, and expose complete CRUD (Create, Read, Update, Delete) operations over HTTP using parameterized queries.
 
 ---
 
 ## How to Run
 
-### 1. Prerequisites
-- Node.js (version 18 or higher)
-- npm (Node Package Manager)
+### Prerequisites
+- Node.js (v18.x or later)
+- npm (v9.x or later)
 
-### 2. Navigate to Project Directory
+### 1. Installation
+Navigate to the `lab-02/` directory and install project dependencies:
 ```bash
 cd lab-02
-```
-
-### 3. Install Dependencies
-```bash
 npm install
 ```
 
-### 4. Initialize Database
+### 2. Environment Variables
+Create an optional `.env` file in the `lab-02/` root directory (do not commit this file to version control):
+```env
+PORT=3000
+```
+*Note: If no environment variable is provided, the server defaults to port `3000`.*
+
+### 3. Initialize / Seed the Database
+To create the SQLite database file (`books.db`), create the `book` table, and seed 10 initial records:
 ```bash
+npm run init-db
+# or
 node setupDb.js
 ```
-This generates `books.db` containing the `book` table seeded with initial records.
 
-### 5. Start the Server
-```bash
-node app.js
-# or
-npm start
-```
-The server will start listening on `http://localhost:3000/`.
+### 4. Start the Server
+- **Development mode (with nodemon for auto-restart on code changes):**
+  ```bash
+  npm run dev
+  ```
+- **Production mode:**
+  ```bash
+  npm start
+  ```
+The server will start at: `http://localhost:3000/`
 
 ---
 
 ## Endpoints Table
 
-| Method | Endpoint | Path / Body Parameters | Success Status | Error Status | Description |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **GET** | `/books/` | None | `200 OK` | `500` | Fetch list of all books from the database. |
-| **GET** | `/books/:bookId/` | Path: `bookId` | `200 OK` | `404 Not Found`, `500` | Fetch single book by primary key ID. |
-| **POST** | `/books/` | Body: `{ title, author, price, pages }` | `201 Created` | `500` | Insert a new book record into the database. |
-| **PUT** | `/books/:bookId/` | Path: `bookId`<br>Body: `{ title, author, price, pages }` | `200 OK` | `404 Not Found`, `500` | Update existing book record after verifying existence. |
-| **DELETE** | `/books/:bookId/` | Path: `bookId` | `200 OK` | `404 Not Found`, `500` | Delete book record by ID after verifying existence. |
+| HTTP Method | Endpoint Path | Description | Request Body | Success Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **GET** | `/books/` | Retrieves the list of all books ordered by ID | None | `200 OK` |
+| **GET** | `/books/:bookId/` | Retrieves a single book by its ID | None | `200 OK` (or `404 Not Found`) |
+| **POST** | `/books/` | Inserts a new book into the database | JSON `{ title, author, price, pages }` | `201 Created` |
+| **PUT** | `/books/:bookId/` | Updates all fields of an existing book | JSON `{ title, author, price, pages }` | `200 OK` (or `404 Not Found`) |
+| **DELETE** | `/books/:bookId/` | Deletes a book record from the database | None | `200 OK` (or `404 Not Found`) |
 
 ---
 
-## Complete Clean Source Code
+## Screenshots
 
-### `package.json`
-```json
-{
-  "name": "lab-02",
-  "version": "1.0.0",
-  "description": "Lab 2: SQLite database and CRUD routes",
-  "main": "app.js",
-  "scripts": {
-    "start": "node app.js",
-    "setup-db": "node setupDb.js"
-  },
-  "dependencies": {
-    "express": "^4.21.2",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
-  }
-}
-```
-
-### `setupDb.js`
-```javascript
-const path = require("path");
-const { open } = require("sqlite");
-const sqlite3 = require("sqlite3");
-
-const dbPath = path.join(__dirname, "books.db");
-
-const setupDatabase = async () => {
-  try {
-    const db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
-    });
-
-    await db.exec(`
-      DROP TABLE IF EXISTS book;
-      CREATE TABLE book (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        author TEXT NOT NULL,
-        price INTEGER NOT NULL,
-        pages INTEGER NOT NULL
-      );
-    `);
-
-    const books = [
-      ["The Great Gatsby", "F. Scott Fitzgerald", 450, 180],
-      ["To Kill a Mockingbird", "Harper Lee", 550, 281],
-      ["1984", "George Orwell", 350, 328],
-      ["The Catcher in the Rye", "J.D. Salinger", 420, 234],
-      ["Pride and Prejudice", "Jane Austen", 280, 279],
-      ["The Hobbit", "J.R.R. Tolkien", 600, 310],
-      ["Fahrenheit 451", "Ray Bradbury", 320, 249],
-      ["Brave New World", "Aldous Huxley", 480, 268],
-      ["The Alchemist", "Paulo Coelho", 299, 208],
-      ["Crime and Punishment", "Fyodor Dostoevsky", 650, 671]
-    ];
-
-    for (const book of books) {
-      await db.run(
-        `INSERT INTO book (title, author, price, pages) VALUES (?, ?, ?, ?)`,
-        book
-      );
-    }
-
-    console.log("Database initialized and seeded successfully.");
-    await db.close();
-  } catch (error) {
-    console.error("Database setup failed:", error.message);
-    process.exit(1);
-  }
-};
-
-setupDatabase();
-```
-
-### `app.js`
-```javascript
-const express = require("express");
-const path = require("path");
-const { open } = require("sqlite");
-const sqlite3 = require("sqlite3");
-
-const app = express();
-app.use(express.json());
-
-const dbPath = path.join(__dirname, "books.db");
-let db = null;
-
-const initializeDBAndServer = async () => {
-  try {
-    db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
-    });
-    app.listen(3000, () => {
-      console.log("Server Running at http://localhost:3000/");
-    });
-  } catch (error) {
-    console.error(`DB Error: ${error.message}`);
-    process.exit(1);
-  }
-};
-
-initializeDBAndServer();
-
-app.get("/books/", async (request, response) => {
-  try {
-    const getBooksQuery = `SELECT * FROM book ORDER BY id;`;
-    const books = await db.all(getBooksQuery);
-    response.status(200).json(books);
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-app.get("/books/:bookId/", async (request, response) => {
-  const { bookId } = request.params;
-  try {
-    const getBookQuery = `SELECT * FROM book WHERE id = ?;`;
-    const book = await db.get(getBookQuery, [bookId]);
-    if (!book) {
-      return response.status(404).json({ message: "Book Not Found" });
-    }
-    response.status(200).json(book);
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-app.post("/books/", async (request, response) => {
-  const { title, author, price, pages } = request.body;
-  try {
-    const addBookQuery = `INSERT INTO book (title, author, price, pages) VALUES (?, ?, ?, ?);`;
-    const result = await db.run(addBookQuery, [title, author, price, pages]);
-    response.status(201).json({
-      bookId: result.lastID,
-      message: "Book Added Successfully"
-    });
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-app.put("/books/:bookId/", async (request, response) => {
-  const { bookId } = request.params;
-  try {
-    const checkQuery = `SELECT * FROM book WHERE id = ?;`;
-    const existingBook = await db.get(checkQuery, [bookId]);
-    if (!existingBook) {
-      return response.status(404).json({ message: "Book Not Found" });
-    }
-    const { title, author, price, pages } = request.body;
-    const updateBookQuery = `UPDATE book SET title = ?, author = ?, price = ?, pages = ? WHERE id = ?;`;
-    await db.run(updateBookQuery, [title, author, price, pages, bookId]);
-    response.status(200).json({ message: "Book Updated Successfully" });
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-app.delete("/books/:bookId/", async (request, response) => {
-  const { bookId } = request.params;
-  try {
-    const checkQuery = `SELECT * FROM book WHERE id = ?;`;
-    const existingBook = await db.get(checkQuery, [bookId]);
-    if (!existingBook) {
-      return response.status(404).json({ message: "Book Not Found" });
-    }
-    const deleteBookQuery = `DELETE FROM book WHERE id = ?;`;
-    await db.run(deleteBookQuery, [bookId]);
-    response.status(200).json({ message: "Book Deleted Successfully" });
-  } catch (error) {
-    response.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-app.use((request, response) => {
-  response.status(404).json({ message: "Route Not Found" });
-});
-
-module.exports = app;
-```
+### 1. GET `/books/` — Retrieve All Books
+Retrieves all book records from the database table.
+![GET All Books](screenshots/01_get_all_books.png)
 
 ---
 
-## Working Output & IDE Screenshots
+### 2. GET `/books/:bookId/` — Retrieve Single Book by ID
+Retrieves the details of book with ID `3` (1984 by George Orwell).
+![GET Book By ID](screenshots/02_get_book_by_id.png)
 
-### 1. Database Creation & Seeding (`setupDb.js`)
-VS Code IDE showing `setupDb.js` execution in the integrated terminal, creating `books.db` and seeding records.
-![Database Setup](screenshots/01_database_setup.png)
+---
 
-### 2. CRUD Express Server Architecture (`app.js`)
-VS Code IDE editor displaying the clean asynchronous `initializeDBAndServer` function and parameterized CRUD routes.
-![Server Source Code](screenshots/02_server_code.png)
+### 3. POST `/books/` — Add a New Book
+Inserts a new book record (*The Pragmatic Programmer*) into the `book` table and returns the generated `bookId`.
+![POST Add Book](screenshots/03_post_add_book.png)
 
-### 3. Read All Books (`GET /books/`)
-VS Code integrated terminal output verifying `GET /books/` returning all 10 seeded records.
-![GET All Books](screenshots/03_get_all_books.png)
+---
 
-### 4. Read Single Book (`GET /books/:bookId/`)
-VS Code integrated terminal output verifying `GET /books/2/` returning single book record.
-![GET Single Book](screenshots/04_get_single_book.png)
+### 4. PUT `/books/:bookId/` — Update Book by ID
+Updates the title, price, and page count of book with ID `3`.
+![PUT Update Book](screenshots/04_put_update_book.png)
 
-### 5. Create Book (`POST /books/`)
-VS Code integrated terminal output verifying `POST /books/` successfully inserting a book and returning generated ID.
-![POST Add Book](screenshots/05_post_add_book.png)
+---
 
-### 6. Update Book (`PUT /books/:bookId/`)
-VS Code integrated terminal output verifying `PUT /books/2/` modifying existing book details.
-![PUT Update Book](screenshots/06_put_update_book.png)
+### 5. DELETE `/books/:bookId/` — Remove Book by ID
+Deletes the book with ID `5` (*Pride and Prejudice*) from the database.
+![DELETE Book](screenshots/05_delete_book.png)
 
-### 7. Delete Book (`DELETE /books/:bookId/`)
-VS Code integrated terminal output verifying `DELETE /books/2/` removing book from database.
-![DELETE Book](screenshots/07_delete_book.png)
+---
 
-### 8. SQLite CLI Database Verification
-VS Code integrated terminal displaying SQLite CLI `.mode table` and queries confirming persistent database changes.
-![SQLite CLI Verification](screenshots/08_sqlite_cli_verification.png)
+### 6. Error Handling: GET `/books/999/` (404 Not Found)
+Returns a structured error message and HTTP status `404 Not Found` when requesting a non-existent book ID.
+![Error 404 Not Found](screenshots/06_error_book_not_found.png)
+
+---
+
+### 7. SQLite CLI Database Verification
+Terminal view comparing database rows before and after the POST, PUT, and DELETE operations. Notice the update to ID 3, deletion of ID 5, and addition of ID 11.
+![SQLite CLI Verification](screenshots/07_sqlite_cli_verification.png)
 
 ---
 
 ## Viva Questions & Answers
 
-### Q1: Why must database calls be awaited with `await`?
-- Database queries are I/O bound and asynchronous operations that return a Promise.
-- Without `await`, JavaScript execution moves immediately to the next statement before the database driver finishes fetching or modifying the data, resulting in `undefined` values, unhandled promise rejections, or sending responses before query completion.
-- Using `await` halts function execution until the Promise settles, guaranteeing that data is ready before sending the HTTP response.
+### 1. Why await the database call?
+> **Answer:** Database operations (such as disk I/O, network communication, query parsing, and row fetching) are inherently asynchronous in Node.js. If we do not use `await` with database calls (e.g. `await db.all(query)` or `await db.run(query)`), JavaScript will immediately proceed to execute the subsequent lines before the database has returned any data. This would cause variables holding query results to evaluate to an unfulfilled `Promise` rather than the actual dataset, leading to empty or `undefined` HTTP responses. Using `await` suspends execution of the `async` handler function until the Promise resolves, ensuring data integrity without blocking the Node.js event loop.
 
-### Q2: What is SQL Injection and how do parameterized `?` placeholders prevent it?
-- **SQL Injection:** A vulnerability where malicious SQL commands are injected into database queries via unsanitized user inputs (e.g. `title = 'foo' OR '1'='1'`).
-- **How Placeholders Prevent It:** Parameterized queries with `?` placeholders tell the database driver to treat user input strictly as raw literal data/values rather than executable SQL syntax. The database engine compiles the SQL query structure first and then binds the parameters, preventing attackers from altering the query logic.
+### 2. What is SQL injection and how do placeholders prevent it?
+> **Answer:** **SQL Injection (SQLi)** is a security vulnerability that occurs when untrusted user input is directly concatenated or interpolated into a raw SQL query string. An attacker can craft malicious input containing SQL commands (e.g., `' OR '1'='1' --` or `'; DROP TABLE book; --`) to alter the query logic, bypass authentication, exfiltrate confidential data, or tamper with tables.
+>
+> **How placeholders prevent it:** Placeholders (such as the `?` character in SQLite and prepared statements) separate the SQL command code from user-supplied data. When using parameterized queries:
+> 1. The database driver compiles and parses the query structure first.
+> 2. The user inputs are treated strictly as literal data values/parameters, never as executable SQL instructions, completely neutralizing any injected SQL syntax.
 
-### Q3: When is PUT used instead of POST in REST API design?
-- **`POST`:** Used to create a new subordinate resource. The server determines the new resource's URI and ID. `POST` is generally **not idempotent**; repeating the request creates duplicate resources.
-- **`PUT`:** Used to completely replace or update an existing resource at a known URI (e.g., `/books/2/`). `PUT` is **idempotent**; executing the same request multiple times leaves the resource in the identical state.
+### 3. When is PUT used instead of POST?
+> **Answer:**
+> - **POST** is used to **create a new resource**. It is typically non-idempotent: sending the same POST request multiple times will create multiple new rows with distinct auto-incremented primary keys. The client does not specify the resource URL/ID before creation.
+> - **PUT** is used to **update or replace an existing resource** at a known URI (e.g., `/books/3/`). PUT is designed to be **idempotent**: executing the same PUT request multiple times with identical data results in the exact same state on the server without creating duplicate resources.
 
 ---
 
-## Notes: Problems Faced and Solutions
-1. **Asynchronous Connection Order:**
-   - Attempting to listen on the port before database connection was established caused route handlers to query a `null` db instance.
-   - *Solution:* Grouped initialization inside `initializeDBAndServer()` so `app.listen()` is only called after `await open(...)` resolves successfully.
-2. **Resource Existence Check Before Update / Delete:**
-   - Performing `UPDATE` or `DELETE` on a non-existent ID without verification resulted in silent 200 responses despite zero rows affected.
-   - *Solution:* Added a preliminary `SELECT` check; if no book is found, the route immediately returns `404 Not Found` with `{ "message": "Book Not Found" }`.
+## Notes: Problems Faced and How You Solved Them
+1. **Port Collision (`EADDRINUSE: 3000`)**:
+   - *Problem:* A previously running background Node process from Lab 1 was occupying port 3000.
+   - *Solution:* Used PowerShell commands (`Get-NetTCPConnection` and `Stop-Process`) to detect and terminate the conflicting process before starting the Lab 2 server.
+2. **Server Starting Before Database Connection**:
+   - *Problem:* Starting Express's `app.listen()` before SQLite connection initialization caused incoming requests to fail with `Cannot read property 'all' of null`.
+   - *Solution:* Structured the entrypoint using an `initializeDBAndServer()` async function where `app.listen()` is called inside the `try` block only after `await open({...})` successfully completes.
+3. **Preventing SQL Injection with Input Data**:
+   - *Problem:* Concatenating route parameters (`req.params.bookId`) or request body properties into query strings introduces SQL injection risks.
+   - *Solution:* Replaced string interpolations with `?` placeholders and passed variables as an array parameter in `db.get()`, `db.run()`, and `db.all()`.
